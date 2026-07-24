@@ -1,0 +1,89 @@
+-- ============================================================
+-- schema.sql
+-- Portal Unificado COMEX & Logística — Farmacorp WMS
+-- Exportado desde Supabase (SQL Editor) el 2026-07-24
+--
+-- Cómo se generó (por si necesitas volver a exportarlo):
+--   1. Supabase → SQL Editor → New query
+--   2. select table_name, column_name, data_type, is_nullable, column_default
+--      from information_schema.columns
+--      where table_schema = 'public'
+--      order by table_name, ordinal_position;
+--   3. select event_object_table, trigger_name, action_timing,
+--             event_manipulation, action_statement
+--      from information_schema.triggers
+--      where trigger_schema = 'public';
+--
+-- Este archivo es un REGISTRO de la estructura real, no un script
+-- para recrear la base desde cero. Úsalo como referencia cada vez
+-- que edites script.js, para no volver a desincronizar nombres de
+-- columnas (como pasó con url_foto vs url).
+-- ============================================================
+
+
+-- ============================================================
+-- TABLA: embarques
+-- Un registro por embarque, cubre TODO el ciclo:
+-- COMEX (nuevo, estado/canal) + Logística (recepción real)
+-- ============================================================
+-- Columna                  | Tipo                      | Nulo | Default
+-- id                       | uuid                       | NO   | gen_random_uuid()
+-- id_registro              | text                       | SI   | null
+-- fecha_creacion           | timestamp with time zone   | NO   | now()
+-- fecha_ultima_act         | timestamp with time zone   | NO   | now()   -- ⚠️ ver nota trigger abajo
+-- proveedor                | text                       | NO   | null
+-- num_factura               | text                       | NO   | null
+-- descripcion_mercaderia   | text                       | SI   | null
+-- tipo_container            | text                       | SI   | null
+-- cant_pallets_est          | numeric                    | SI   | 0
+-- cant_cajas_est             | numeric                    | SI   | 0
+-- cubicaje_m3                | numeric                    | SI   | 0
+-- fecha_estimada_llegada    | date                       | SI   | null
+-- cedis_destino              | text                       | SI   | null
+-- estado_transito            | text                       | NO   | 'En Origen'
+-- canal_aduana                | text                       | NO   | 'Pendiente'
+-- fecha_real_llegada          | date                       | SI   | null
+-- fecha_entrega_oc            | date                       | SI   | null
+-- orden_compra                | text                       | SI   | null
+-- pallets_recibidos           | numeric                    | SI   | null
+-- cajas_recibidas              | numeric                    | SI   | null
+-- sku_recibidos                | numeric                    | SI   | null
+-- estado_recepcion             | text                       | NO   | 'En Espera'
+-- foto_url                     | text                       | SI   | null   -- legado, no se usa desde que existe fotos_recepcion
+-- dias_almacenaje               | integer                    | SI   | null   -- probablemente calculado (trigger o vista)
+-- desviacion_eta_dias           | integer                    | SI   | null   -- no referenciado aún en script.js
+-- diferencia_pallets            | numeric                    | SI   | null   -- no referenciado aún en script.js
+
+
+-- ============================================================
+-- TABLA: fotos_recepcion
+-- Una fila por cada foto subida en la pestaña Logística/Recepción
+-- Las imágenes en sí viven en Cloudinary; aquí solo se guarda la URL
+-- ============================================================
+-- Columna         | Tipo                      | Nulo | Default
+-- id               | uuid                       | NO   | gen_random_uuid()
+-- embarque_id       | uuid                       | NO   | null   -- FK lógica hacia embarques.id
+-- url                | text                       | NO   | null   -- ✅ nombre correcto (NO es url_foto)
+-- created_at          | timestamp with time zone   | NO   | now()
+
+
+-- ============================================================
+-- TRIGGERS CONFIRMADOS (public schema) — verificado 2026-07-24
+-- ============================================================
+-- Tabla       | Trigger               | Momento       | Evento  | Función
+-- embarques   | trg_set_id_registro   | BEFORE        | INSERT  | set_id_registro()
+-- embarques   | trg_fecha_ultima_act  | BEFORE        | UPDATE  | set_fecha_ultima_act()
+--
+-- trg_set_id_registro:
+--   Genera id_registro automáticamente en cada INSERT.
+--   Por eso form-nuevo (script.js) nunca lo manda a mano — correcto tal cual está.
+--
+-- trg_fecha_ultima_act:
+--   Actualiza fecha_ultima_act automáticamente en cada UPDATE.
+--   CONFIRMADO: script.js NUNCA debe mandar fecha_ultima_act ni updated_at
+--   a mano desde el frontend (updated_at ni siquiera es el nombre real de
+--   la columna — ese fue el bug original en guardarRecepcion()). El
+--   trigger ya se encarga de todo.
+--
+-- Estado: cerrado. No queda ninguna columna ni trigger pendiente de
+-- verificar contra script.js.

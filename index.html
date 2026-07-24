@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Farmacorp WMS — Portal Unificado COMEX & Logística</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- PESTAÑA 3: LOGÍSTICA — RECEPCIÓN -->
+<div id="tab-logistica" class="tab-content">
+  <div class="card">
+    <h2>📦 Confirmación de Llegada de Importación</h2>
+    <p class="subtitle">Busca el embarque para registrar la llegada y adjuntar la evidencia fotográfica.</p>
+    
+    <!-- Banner de error de configuración -->
+    <div id="config-banner" style="display:none; color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+      ⚠️ La configuración de Supabase o Cloudinary no está lista.
+    </div>
+
+    <!-- Buscador del embarque -->
+    <div class="form-group" style="margin-top: 15px;">
+      <label for="buscar-factura-recepcion"><strong>N° Factura / Carpeta:</strong></label>
+      <div style="display: flex; gap: 10px; margin-top: 5px;">
+        <input type="text" id="buscar-factura-recepcion" placeholder="Ej: F-99823" style="flex: 1;">
+        <button type="button" onclick="buscarRecepcion()" class="btn-primary">Buscar Embarque</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formulario de Recepción (se muestra al encontrar un embarque) -->
+  <div id="detalle-recepcion-container" class="card" style="display: none; margin-top: 20px;">
+    <h3>Detalles del Embarque: <span id="lbl-embarque-codigo" style="color: #0056b3;"></span></h3>
+    <p><strong>Proveedor:</strong> <span id="lbl-embarque-proveedor"></span></p>
+    <hr style="margin: 15px 0;">
+
+    <form id="form-confirmar-recepcion" onsubmit="event.preventDefault(); guardarRecepcion();">
+      <!-- ID interno de Supabase guardado automáticamente -->
+      <input type="hidden" id="embarque-id-hidden">
+
+      <div class="form-group">
+        <label for="foto-input"><strong>Fotografía(s) de Recepción:</strong></label>
+        <input type="file" id="foto-input" accept="image/*" multiple onchange="previsualizarFotos(event)" style="margin-top: 5px;">
+        <div id="preview-fotos-container" class="preview-grid" style="margin-top: 10px;"></div>
+      </div>
+
+      <div class="form-group" style="margin-top: 15px;">
+        <label for="obs-recepcion"><strong>Observaciones de Llegada:</strong></label>
+        <textarea id="obs-recepcion" rows="3" placeholder="Estado de empaques, número de precinto, novedades..." style="width: 100%; margin-top: 5px;"></textarea>
+      </div>
+
+      <button type="submit" id="btn-guardar" class="btn-primary" style="margin-top: 15px; width: 100%;">
+        Confirmar Llegada y Guardar Fotos
+      </button>
+    </form>
+  </div>
+</div>
+
+  <div class="main-layout">
+    <!-- SIDEBAR DE NAVEGACIÓN DINÁMICO -->
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">CONTROL OPERATIVO</div>
+      <button class="tab-btn active" data-tab="tab-nuevo">🧾 COMEX: Nuevo</button>
+      <button class="tab-btn" data-tab="tab-estado">📋 Estado / Canal</button>
+      <button class="tab-btn" data-tab="tab-recepcion">📦 Logística: Recepción</button>
+      <button class="tab-btn" data-tab="tab-monitor">📊 Monitor General</button>
+    </nav>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="content-area">
+
+      <!-- ================= TAB 1: COMEX NUEVO ================= -->
+      <div id="tab-nuevo" class="tab-content active">
+        <div class="panel">
+          <h2>Registrar Nuevo Embarque (COMEX)</h2>
+          <form id="form-nuevo">
+            <div class="form-row">
+              <div class="form-field">
+                <label>N° Factura / Carpeta <span class="req">*</span></label>
+                <input type="text" id="n-factura" placeholder="Ej: F-99823" required>
+              </div>
+              <div class="form-field">
+                <label>Proveedor <span class="req">*</span></label>
+                <input type="text" id="n-proveedor" placeholder="Nombre del proveedor" required>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field" style="flex-basis:100%;">
+                <label>Descripción Mercadería</label>
+                <input type="text" id="n-descripcion" placeholder="Detalle breve de la carga">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field">
+                <label>Tipo de Contenedor / Transporte</label>
+                <select id="n-container">
+                  <option>40HC</option>
+                  <option>40GP</option>
+                  <option>20GP</option>
+                  <option>LCL (Carga Consolidada)</option>
+                  <option>Aéreo</option>
+                  <option>Otro</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Cant. Pallets Estimados</label>
+                <input type="number" id="n-pallets" value="0" min="0">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field">
+                <label>Cant. Cajas / Bultos Estimados</label>
+                <input type="number" id="n-cajas" value="0" min="0">
+              </div>
+              <div class="form-field">
+                <label>Cubicaje (m³)</label>
+                <input type="number" id="n-cubicaje" value="0" min="0" step="0.01">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field">
+                <label>Fecha Estimada Llegada (ETA) <span class="req">*</span></label>
+                <input type="date" id="n-eta" required>
+              </div>
+              <div class="form-field">
+                <label>CEDIS Destino</label>
+                <select id="n-cedis">
+                  <option>CEDIS Santa Cruz</option>
+                  <option>CEDIS La Paz</option>
+                  <option>CEDIS Cochabamba</option>
+                  <option>Otro</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" class="btn-primary" id="btn-guardar-nuevo">Guardar Registro en Base de Datos</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- ================= TAB 2: COMEX ESTADO/CANAL ================= -->
+      <div id="tab-estado" class="tab-content">
+        <div class="panel">
+          <h2>Actualizar Estado de Tránsito y Canal (COMEX)</h2>
+          <div class="search-bar">
+            <input type="text" id="e-buscar" placeholder="Buscar por N° de Factura...">
+            <button class="btn-secondary" onclick="buscarEstado()">Buscar</button>
+          </div>
+
+          <div class="result-card" id="e-result"></div>
+
+          <div class="edit-section" id="e-edit">
+            <div class="form-row">
+              <div class="form-field">
+                <label>Estado de Tránsito</label>
+                <select id="e-transito">
+                  <option>En Origen</option>
+                  <option>En Tránsito</option>
+                  <option>En Frontera</option>
+                  <option>En Aduana</option>
+                  <option>En CEDIS</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Canal de Aduana</label>
+                <select id="e-canal">
+                  <option>Pendiente</option>
+                  <option>Verde</option>
+                  <option>Amarillo</option>
+                  <option>Rojo</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-field">
+                <label>Fecha Estimada de Llegada (ETA)</label>
+                <input type="date" id="e-eta">
+              </div>
+              <div class="form-field">
+                <label>Cant. Pallets Estimados</label>
+                <input type="number" id="e-pallets" min="0">
+              </div>
+            </div>
+            <button class="btn-primary" id="btn-guardar-estado" onclick="guardarEstado()">Guardar Actualización</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= TAB 3: LOGÍSTICA RECEPCIÓN ================= -->
+      <div id="tab-recepcion" class="tab-content">
+        <div class="panel">
+          <h2>Registrar Recepción Real (Logística)</h2>
+          <div class="search-bar">
+            <input type="text" id="r-buscar" placeholder="Buscar por N° de Factura...">
+            <button class="btn-secondary" onclick="buscarRecepcion()">Buscar</button>
+          </div>
+
+          <div class="result-card" id="r-result"></div>
+
+          <div class="edit-section" id="r-edit">
+            <div class="form-row">
+              <div class="form-field">
+                <label>Fecha Real de Llegada</label>
+                <input type="date" id="r-fecha-real">
+              </div>
+              <div class="form-field">
+                <label>Fecha de Entrega a la OC</label>
+                <input type="date" id="r-fecha-oc">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-field">
+                <label>N° Orden de Compra</label>
+                <input type="text" id="r-oc" placeholder="Ej: OC-4521">
+              </div>
+              <div class="form-field">
+                <label>Estado de Recepción</label>
+                <select id="r-estado">
+                  <option>En Espera</option>
+                  <option>Parcial</option>
+                  <option>Recibido</option>
+                  <option>Recibido con Novedad</option>
+                  <option>Finalizado</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-field">
+                <label>Pallets Recibidos</label>
+                <input type="number" id="r-pallets" min="0">
+              </div>
+              <div class="form-field">
+                <label>Cajas Recibidas</label>
+                <input type="number" id="r-cajas" min="0">
+              </div>
+              <div class="form-field">
+                <label>SKUs Recibidos</label>
+                <input type="number" id="r-skus" min="0">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field" style="flex-basis:100%;">
+                <label>📷 Fotos del Recinto / Estado de la Carga</label>
+                <div class="photo-drop" onclick="document.getElementById('r-fotos-input').click()">
+                  Toca para tomar o elegir fotos. Puedes subir varias.
+                </div>
+                <input type="file" id="r-fotos-input" accept="image/*" capture="environment" multiple style="display:none;" onchange="previsualizarFotos(event)">
+                <div class="photo-preview" id="r-fotos-preview"></div>
+              </div>
+            </div>
+
+            <button class="btn-primary" id="btn-guardar-recepcion" onclick="guardarRecepcion()">Guardar Recepción</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= TAB 4: MONITOR ================= -->
+      <div id="tab-monitor" class="tab-content">
+        <div class="filters-bar">
+          <div class="filter-group">
+            <label>Proveedor</label>
+            <select id="f-proveedor" onchange="filtrarMonitor()"><option value="">Todos</option></select>
+          </div>
+          <div class="filter-group">
+            <label>Canal Aduana</label>
+            <select id="f-canal" onchange="filtrarMonitor()">
+              <option value="">Todos</option>
+              <option value="Verde">Verde</option>
+              <option value="Amarillo">Amarillo</option>
+              <option value="Rojo">Rojo</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Estado Tránsito</label>
+            <select id="f-transito" onchange="filtrarMonitor()"><option value="">Todos</option></select>
+          </div>
+          <div class="filter-group">
+            <label>Buscar Factura</label>
+            <input type="text" id="f-buscar" placeholder="Escribe N° Factura..." oninput="filtrarMonitor()">
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="title">🏷️ Cant. de SKU</div><div class="val" id="kpi-skus">0</div></div>
+          <div class="kpi-card"><div class="title">⏱️ Prom. Días Almacén</div><div class="val" id="kpi-dias">0.0</div></div>
+          <div class="kpi-card">
+            <div class="title">📦 Volumen Total</div>
+            <div class="sub-val" id="kpi-pallets">Pallets: 0</div>
+            <div class="sub-val" id="kpi-cajas">Cajas: 0</div>
+          </div>
+          <div class="kpi-card"><div class="title">🏢 Cant. Proveedores</div><div class="val" id="kpi-provs">0</div></div>
+          <div class="kpi-card"><div class="title">📐 Cubicaje Total</div><div class="val" id="kpi-m3">0 m³</div></div>
+        </div>
+
+        <div class="roadmap-panel">
+          <div class="roadmap-title">🚚 MONITOREO DE PROVEEDORES EN RUTA (EXCLUYE FINALIZADOS)</div>
+          <div class="roadmap-container">
+            <div class="roadmap-line"></div>
+            <div class="roadmap-stage"><div class="stage-node">🚢</div><div class="stage-label">Origen</div><div class="cards-stack" id="stack-origen"></div></div>
+            <div class="roadmap-stage"><div class="stage-node">🚚</div><div class="stage-label">En Tránsito</div><div class="cards-stack" id="stack-transito"></div></div>
+            <div class="roadmap-stage"><div class="stage-node">🛃</div><div class="stage-label">En Frontera</div><div class="cards-stack" id="stack-frontera"></div></div>
+            <div class="roadmap-stage"><div class="stage-node">🏛️</div><div class="stage-label">Aduana</div><div class="cards-stack" id="stack-aduana"></div></div>
+            <div class="roadmap-stage"><div class="stage-node">🏢</div><div class="stage-label">En CEDIS</div><div class="cards-stack" id="stack-cedis"></div></div>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th><th>Proveedor</th><th>N° Factura</th><th>Pallets (Est/Rec)</th>
+                <th>Cajas (Est/Rec)</th><th>m³</th><th>F. Arribo</th><th>F. Entrega OC</th>
+                <th>Días Almacén</th><th>SKUs</th><th>Canal</th><th>Estado Tránsito</th>
+                <th>Estado Recepción</th><th>Fotos</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-body"><tr><td colspan="14" style="text-align:center;">Cargando datos...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
