@@ -175,27 +175,29 @@
           <div class="result-card" id="e-result"></div>
 
           <div class="edit-section" id="e-edit">
-            <div class="form-row">
-              <div class="form-field">
-                <label>Estado de Tránsito</label>
-                <select id="e-transito">
-                  <option>En Origen</option>
-                  <option>En Tránsito</option>
-                  <option>En Frontera</option>
-                  <option>En Aduana</option>
-                  <option>En CEDIS</option>
-                </select>
-              </div>
-              <div class="form-field">
-                <label>Canal de Aduana</label>
-                <select id="e-canal">
-                  <option>Pendiente</option>
-                  <option>Verde</option>
-                  <option>Amarillo</option>
-                  <option>Rojo</option>
-                </select>
-              </div>
-            </div>
+  <div class="form-row">
+    <div class="form-field">
+      <label>Estado de Tránsito</label>
+      <select id="e-transito">
+        <option value="En Origen">En Origen</option>
+        <option value="En Puerto">En Puerto</option> <!-- Nueva opción integrada -->
+        <option value="En Tránsito">En Tránsito</option>
+        <option value="En Frontera">En Frontera</option>
+        <option value="En Aduana">En Aduana</option>
+        <option value="En CEDIS">En CEDIS</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label>Canal de Aduana</label>
+      <select id="e-canal">
+        <option value="Pendiente">Pendiente</option>
+        <option value="Verde">Verde</option>
+        <option value="Amarillo">Amarillo</option>
+        <option value="Rojo">Rojo</option>
+      </select>
+    </div>
+  </div>
+</div>
             <div class="form-row">
               <div class="form-field">
                 <label>Fecha Estimada de Llegada (ETA)</label>
