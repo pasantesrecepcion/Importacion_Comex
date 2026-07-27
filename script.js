@@ -8,16 +8,26 @@ const CLOUDINARY_CLOUD_NAME = "ucztvmdf";
 const CLOUDINARY_UPLOAD_PRESET = "preset_recepcion";
 
 /**
- * Inserta transformaciones de Cloudinary (f_auto, q_auto, ancho límite) en la URL
- * para reducir peso/consumo de créditos sin perder calidad visual perceptible.
- * @param {string} url - URL original de Cloudinary guardada en Supabase.
- * @param {number} width - Ancho máximo deseado (px). La imagen nunca se agranda, solo se limita hacia abajo.
+ * Miniatura ultra-liviana para la cuadrícula del modal (~15-30 KB por foto).
+ * f_auto: formato automático WebP/AVIF | q_auto:eco: compresión en modo económico
+ * w_350,h_350,c_fill: recorte exacto y centrado a 350x350px (cuadro fijo, sin deformar)
  */
-function optimizeCloudinaryUrl(url, width = 800) {
+function getThumbnailUrl(url) {
   if (!url || typeof url !== 'string') return url;
   if (!url.includes('res.cloudinary.com') || !url.includes('/upload/')) return url;
   if (url.includes('/upload/f_auto')) return url; // ya optimizada, evita duplicar transformaciones
-  return url.replace('/upload/', `/upload/f_auto,q_auto,w_${width},c_limit/`);
+  return url.replace('/upload/', '/upload/f_auto,q_auto:eco,w_350,h_350,c_fill/');
+}
+
+/**
+ * Versión de detalle al hacer clic en una miniatura (más pesada, pero solo se
+ * descarga bajo demanda). c_limit nunca agranda, solo reduce si la original es mayor.
+ */
+function getFullResUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  if (!url.includes('res.cloudinary.com') || !url.includes('/upload/')) return url;
+  if (url.includes('/upload/f_auto')) return url;
+  return url.replace('/upload/', '/upload/f_auto,q_auto,w_1200,c_limit/');
 }
 
 const configuredOk = !SUPABASE_URL.includes("TU-PROYECTO") && !SUPABASE_ANON_KEY.includes("TU-ANON-KEY");
@@ -345,8 +355,8 @@ function abrirGaleriaFotos(embarqueId) {
     grid.innerHTML = '<p style="color:#64748b;">No hay fotos disponibles para este embarque.</p>';
   } else {
     grid.innerHTML = fotos.map(url => {
-      const urlMiniatura = optimizeCloudinaryUrl(url, 400);  // liviana, para la cuadrícula
-      const urlGrande = optimizeCloudinaryUrl(url, 1600);    // más grande, solo al hacer clic
+      const urlMiniatura = getThumbnailUrl(url);  // ultra-liviana, ~15-30 KB, para la cuadrícula
+      const urlGrande = getFullResUrl(url);        // solo se descarga si el usuario hace clic
       return `
         <a href="${urlGrande}" target="_blank" rel="noopener" class="foto-modal-thumb">
           <img src="${urlMiniatura}" alt="Foto de recepción" loading="lazy">
