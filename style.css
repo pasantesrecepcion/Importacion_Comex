@@ -5,14 +5,18 @@
   --card-white: #ffffff;
   --text-dark: #1e293b;
   --text-muted: #64748b;
-  --blue-primary: #0269c7;
+  /* Paleta oficial Farmacorp (extraída del isotipo) */
+  --blue-primary: #055199;
   --blue-light: #e0f2fe;
-  --blue-accent: #0284c7;
-  --blue-accent-dark: #025380;
+  --blue-accent: #157fc5;
+  --blue-accent-dark: #033c73;
+  --farmacorp-orange: #f38324;
+  --farmacorp-yellow: #fdd20a;
   --border-color: #cbd5e1;
   --green: #15803d;
   --amber: #b45309;
   --red: #b91c1c;
+  --brand-stripe: linear-gradient(90deg, var(--farmacorp-orange), var(--farmacorp-yellow), var(--blue-accent), var(--blue-primary));
 }
 
 * { box-sizing: border-box; }
@@ -27,7 +31,7 @@ body {
   background-size: 32px 32px;
   color: var(--text-dark);
   margin: 0;
-  padding: 14px;
+  padding: 10px;
   min-height: 100vh;
 }
 
@@ -36,7 +40,7 @@ body {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 /* HEADER SUPERIOR */
@@ -44,7 +48,7 @@ body {
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border-color);
-  padding: 16px 24px;
+  padding: 10px 20px;
   border-radius: 14px;
   display: flex;
   justify-content: space-between;
@@ -60,17 +64,27 @@ body {
 }
 
 .brand-logo {
-  background: linear-gradient(135deg, #0269c7, #004385);
-  color: white;
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  color: var(--blue-primary);
+  width: 46px;
+  height: 46px;
+  border-radius: 11px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
   font-size: 1.15rem;
-  box-shadow: 0 4px 10px rgba(2, 105, 199, 0.3);
+  box-shadow: 0 4px 10px rgba(2, 105, 199, 0.12);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.brand-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 4px;
 }
 
 .brand h1 { font-size: 1.2rem; margin: 0; color: #0f172a; font-weight: 800; }
@@ -81,65 +95,67 @@ body {
   color: #92400e; font-size: 0.82rem; padding: 8px 12px;
 }
 
-/* LAYOUT PRINCIPAL RESPONSIVO/FLUIDO */
+/* LAYOUT PRINCIPAL — BARRA HORIZONTAL FIJA (no depende del ancho de pantalla) */
 .main-layout {
-  display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 20px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-/* SIDEBAR DINÁMICO */
+/* BARRA DE PESTAÑAS HORIZONTAL */
 .sidebar-nav {
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border-color);
-  border-radius: 14px;
-  padding: 18px 12px;
+  border-radius: 16px;
+  padding: 6px;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
   box-shadow: 0 4px 16px rgba(2, 105, 199, 0.05);
-  position: sticky;
-  top: 14px;
   animation: fadeInLeft 0.4s ease-out;
 }
 
 .nav-section-title {
-  font-size: 0.72rem;
-  font-weight: 800;
-  color: var(--blue-primary);
-  letter-spacing: 0.8px;
-  padding: 0 10px 8px 10px;
-  border-bottom: 1px solid #f1f5f9;
-  margin-bottom: 4px;
+  display: none;
 }
 
 .tab-btn {
-  width: 100%;
-  padding: 12px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1 1 0;
+  padding: 14px 22px;
   border: none;
   background: transparent;
-  color: var(--text-dark);
-  font-weight: 600;
-  border-radius: 9px;
+  color: var(--text-muted);
+  font-weight: 700;
+  border-radius: 999px;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
+  white-space: nowrap;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+}
+
+.tab-icon {
+  font-size: 1.05rem;
+  line-height: 1;
 }
 
 .tab-btn:hover {
   background: var(--blue-light);
   color: var(--blue-primary);
-  transform: translateX(4px);
+  transform: translateY(-2px);
 }
 
 .tab-btn.active {
   background: linear-gradient(135deg, #0269c7, #025380);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(2, 105, 199, 0.25);
-  transform: translateX(4px);
+  box-shadow: 0 6px 16px rgba(2, 105, 199, 0.3);
+  transform: translateY(-2px);
 }
 
 /* CONTENIDO PRINCIPAL */
@@ -154,29 +170,51 @@ body {
 .panel {
   background: var(--card-white);
   border-radius: 16px;
-  padding: 30px;
+  padding: 20px 26px;
   box-shadow: 0 10px 30px rgba(2, 105, 199, 0.08);
   border: 1px solid rgba(2, 105, 199, 0.1);
   color: var(--text-dark);
+  position: relative;
+  overflow: hidden;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: var(--brand-stripe);
 }
 
 .panel h2 {
-  margin: 0 0 20px;
-  font-size: 1.25rem;
+  margin: 0 0 14px;
+  font-size: 1.2rem;
   color: #0f172a;
   border-bottom: 2px solid #f1f5f9;
-  padding-bottom: 14px;
+  padding-bottom: 10px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panel-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 /* FORMULARIOS Y CONTROLES */
-.form-row { display: flex; gap: 18px; margin-bottom: 16px; flex-wrap: wrap; }
-.form-field { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 6px; }
-.form-field label { font-size: 0.81rem; font-weight: 700; color: var(--text-muted); }
+.form-row { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+.form-field { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 4px; }
+.form-field label { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); }
 .form-field label .req { color: var(--red); }
 .form-field input, .form-field select, .form-field textarea {
-  padding: 11px 14px; border: 1.5px solid var(--border-color); border-radius: 9px;
-  font-size: 0.92rem; font-family: inherit; outline: none; background: #fff; color: var(--text-dark);
+  padding: 9px 14px; border: 1.5px solid var(--border-color); border-radius: 9px;
+  font-size: 0.9rem; font-family: inherit; outline: none; background: #fff; color: var(--text-dark);
   transition: all 0.2s;
 }
 .form-field input:focus, .form-field select:focus {
@@ -184,9 +222,9 @@ body {
 }
 
 .btn-primary {
-  width: 100%; padding: 13px; border: none; border-radius: 9px;
+  width: 100%; padding: 11px; border: none; border-radius: 9px;
   background: linear-gradient(135deg, #0269c7, #025380); color: #fff; font-weight: 700; font-size: 0.95rem;
-  cursor: pointer; transition: all 0.2s; margin-top: 8px;
+  cursor: pointer; transition: all 0.2s; margin-top: 6px;
   box-shadow: 0 4px 12px rgba(2, 105, 199, 0.25);
 }
 .btn-primary:hover { opacity: 0.92; transform: translateY(-1px); }
@@ -199,12 +237,12 @@ body {
 }
 .btn-secondary:hover { background: var(--blue-light); }
 
-.search-bar { display: flex; gap: 10px; margin-bottom: 22px; }
+.search-bar { display: flex; gap: 10px; margin-bottom: 16px; }
 .search-bar input { flex: 1; }
 
 .result-card {
   background: #f8fafc; border: 1px solid var(--border-color); border-radius: 10px;
-  padding: 16px 18px; margin-bottom: 20px; font-size: 0.88rem; display: none; color: var(--text-dark);
+  padding: 14px 16px; margin-bottom: 14px; font-size: 0.88rem; display: none; color: var(--text-dark);
 }
 .result-card.show { display: block; animation: fadeIn 0.3s; }
 .result-card .rc-title { font-weight: 800; color: #0f172a; margin-bottom: 6px; font-size: 1rem; }
@@ -255,12 +293,26 @@ body {
   box-shadow: 0 6px 20px rgba(2, 105, 199, 0.06); text-align: center; border-left: 5px solid var(--blue-accent); color: var(--text-dark);
   border-top: 1px solid rgba(2,132,199,0.08); transition: transform 0.2s; }
 .kpi-card:hover { transform: translateY(-3px); }
+.kpi-card:nth-child(1) { border-left-color: var(--farmacorp-orange); }
+.kpi-card:nth-child(2) { border-left-color: var(--farmacorp-yellow); }
+.kpi-card:nth-child(3) { border-left-color: var(--blue-accent); }
+.kpi-card:nth-child(4) { border-left-color: var(--blue-primary); }
+.kpi-card:nth-child(5) { border-left-color: var(--farmacorp-orange); }
 .kpi-card .title { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; }
 .kpi-card .val { font-size: 2.1rem; font-weight: 800; color: #0f172a; }
 .kpi-card .sub-val { font-size: 0.9rem; font-weight: 700; color: var(--blue-accent); margin-top: 4px; }
 
 .roadmap-panel { background: linear-gradient(135deg, #0f1d36, #024385); color: #fff; padding: 26px; border-radius: 16px;
-  margin-bottom: 20px; box-shadow: 0 10px 25px rgba(2, 105, 199, 0.2); }
+  margin-bottom: 20px; box-shadow: 0 10px 25px rgba(2, 105, 199, 0.2); position: relative; overflow: hidden; }
+.roadmap-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: var(--brand-stripe);
+}
 .roadmap-title { font-size: 1.05rem; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 25px;
   display: flex; align-items: center; gap: 10px; color: #38bdf8; }
 .roadmap-container { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; align-items: start; }
@@ -310,28 +362,14 @@ tr:hover { background-color: #f1f5f9; }
   to { opacity: 1; transform: translateX(0); }
 }
 
-/* RESPONSIVE FLUIDO / SEMI-MÓVIL */
-@media (max-width: 1024px) {
-  .main-layout {
-    grid-template-columns: 1fr;
-  }
-  .sidebar-nav {
-    position: relative;
-    top: 0;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 12px;
-  }
-  .nav-section-title {
-    display: none;
-  }
+/* RESPONSIVE — SOLO AJUSTES PARA MÓVIL REAL */
+@media (max-width: 768px) {
   .tab-btn {
-    flex: 1;
-    min-width: 140px;
-    text-align: center;
-    padding: 10px;
-    font-size: 0.85rem;
+    flex: 1 1 auto;
+    justify-content: center;
+    min-width: 130px;
+    padding: 10px 12px;
+    font-size: 0.82rem;
   }
   .roadmap-container {
     grid-template-columns: 1fr;
@@ -339,5 +377,9 @@ tr:hover { background-color: #f1f5f9; }
   }
   .roadmap-line {
     display: none;
+  }
+  .app-header {
+    flex-wrap: wrap;
+    gap: 10px;
   }
 }
