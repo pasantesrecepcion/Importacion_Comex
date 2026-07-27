@@ -189,6 +189,7 @@
               </div>
             </div>
             <button class="btn-primary" id="btn-guardar-estado" onclick="guardarEstado()">Guardar Actualización</button>
+            <button type="button" class="btn-secondary" id="btn-eliminar-estado" style="border-color:var(--red); color:var(--red); width:100%; margin-top:10px;" onclick="eliminarRegistroActual()">🗑 Eliminar este registro</button>
           </div>
         </div>
       </div>
@@ -309,7 +310,7 @@
         </div>
 
         <div class="roadmap-panel">
-          <div class="roadmap-title">🚚 MONITOREO DE PROVEEDORES EN RUTA</div>
+          <div class="roadmap-title">🚚 MONITOREO DE PROVEEDORES EN RUTA (EXCLUYE FINALIZADOS)</div>
           <div class="roadmap-container">
             <div class="roadmap-line"></div>
             <div class="roadmap-stage"><div class="stage-node">🚢</div><div class="stage-label">Origen</div><div class="cards-stack" id="stack-origen"></div></div>

@@ -269,6 +269,14 @@ function seleccionarRegistroEstado(id) {
   editBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+async function eliminarRegistroActual() {
+  if (!registroEstadoActual) {
+    toast('No hay ningún registro cargado para eliminar.', 'err');
+    return;
+  }
+  await eliminarRegistroPorId(registroEstadoActual.id);
+}
+
 async function eliminarRegistroPorId(id) {
   if (!requireConfig()) return;
   const r = registrosEstadoEncontrados.find(x => String(x.id) === String(id));
@@ -276,8 +284,16 @@ async function eliminarRegistroPorId(id) {
   const ok = confirm(`¿Eliminar el registro ${etiqueta}? Esta acción no se puede deshacer.`);
   if (!ok) return;
 
-  const { error } = await sb.from(TABLE).delete().eq('id', id);
+  // .select() nos permite ver qué filas realmente se borraron. Si RLS bloquea el
+  // DELETE sin permiso, Supabase no da error, pero data queda vacío (0 filas afectadas).
+  const { data, error } = await sb.from(TABLE).delete().eq('id', id).select();
+
   if (error) { toast('Error al eliminar: ' + error.message, 'err'); return; }
+
+  if (!data || data.length === 0) {
+    toast('⚠️ No se eliminó ningún registro. Probablemente falta el permiso DELETE (RLS) en Supabase.', 'err');
+    return;
+  }
 
   toast('Registro eliminado.', 'ok');
   buscarEstado();
