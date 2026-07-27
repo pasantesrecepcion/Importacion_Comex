@@ -322,6 +322,17 @@
 
 <div id="toast"></div>
 
+<!-- MODAL: GALERÍA DE FOTOS -->
+<div id="foto-modal-overlay" class="foto-modal-overlay" onclick="cerrarGaleriaFotos(event)">
+  <div class="foto-modal" onclick="event.stopPropagation()">
+    <div class="foto-modal-header">
+      <h3 id="foto-modal-title">📷 Fotos de Recepción</h3>
+      <button type="button" class="foto-modal-close" onclick="cerrarGaleriaFotos()" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="foto-modal-grid" id="foto-modal-grid"></div>
+  </div>
+</div>
+
 <script src="script.js"></script>
 </body>
 </html>

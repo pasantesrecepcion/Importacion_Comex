@@ -7,6 +7,19 @@ const BUCKET = "recepcion-fotos";
 const CLOUDINARY_CLOUD_NAME = "ucztvmdf";
 const CLOUDINARY_UPLOAD_PRESET = "preset_recepcion";
 
+/**
+ * Inserta transformaciones de Cloudinary (f_auto, q_auto, ancho límite) en la URL
+ * para reducir peso/consumo de créditos sin perder calidad visual perceptible.
+ * @param {string} url - URL original de Cloudinary guardada en Supabase.
+ * @param {number} width - Ancho máximo deseado (px). La imagen nunca se agranda, solo se limita hacia abajo.
+ */
+function optimizeCloudinaryUrl(url, width = 800) {
+  if (!url || typeof url !== 'string') return url;
+  if (!url.includes('res.cloudinary.com') || !url.includes('/upload/')) return url;
+  if (url.includes('/upload/f_auto')) return url; // ya optimizada, evita duplicar transformaciones
+  return url.replace('/upload/', `/upload/f_auto,q_auto,w_${width},c_limit/`);
+}
+
 const configuredOk = !SUPABASE_URL.includes("TU-PROYECTO") && !SUPABASE_ANON_KEY.includes("TU-ANON-KEY");
 if (!configuredOk) document.getElementById('config-banner').style.display = 'block';
 
@@ -321,7 +334,39 @@ async function guardarRecepcion() {
 // TAB 4: MONITOR
 // ==========================================================
 let datosMonitorGlobal = [];
-let fotosPorEmbarque = {};
+let galeriaFotosData = {};
+
+function abrirGaleriaFotos(embarqueId) {
+  const fotos = galeriaFotosData[embarqueId] || [];
+  const grid = document.getElementById('foto-modal-grid');
+  const title = document.getElementById('foto-modal-title');
+
+  if (fotos.length === 0) {
+    grid.innerHTML = '<p style="color:#64748b;">No hay fotos disponibles para este embarque.</p>';
+  } else {
+    grid.innerHTML = fotos.map(url => {
+      const urlMiniatura = optimizeCloudinaryUrl(url, 400);  // liviana, para la cuadrícula
+      const urlGrande = optimizeCloudinaryUrl(url, 1600);    // más grande, solo al hacer clic
+      return `
+        <a href="${urlGrande}" target="_blank" rel="noopener" class="foto-modal-thumb">
+          <img src="${urlMiniatura}" alt="Foto de recepción" loading="lazy">
+        </a>
+      `;
+    }).join('');
+  }
+
+  title.textContent = `📷 Fotos de Recepción (${fotos.length})`;
+  document.getElementById('foto-modal-overlay').classList.add('show');
+}
+
+function cerrarGaleriaFotos(event) {
+  if (event && event.target !== event.currentTarget && event.type === 'click') return;
+  document.getElementById('foto-modal-overlay').classList.remove('show');
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') cerrarGaleriaFotos();
+});
 
 async function cargarMonitor() {
   if (!requireConfig()) {
@@ -448,8 +493,9 @@ function filtrarMonitor() {
     const canalStyle = { verde: 'color:#15803d;font-weight:bold;', amarillo: 'color:#b45309;font-weight:bold;', rojo: 'color:#b91c1c;font-weight:bold;' };
     const cKey = claseCanal(f.canal_aduana).replace('canal-', '');
     const fotos = fotosPorEmbarque[f.id] || (f.foto_url ? [f.foto_url] : []);
+    galeriaFotosData[f.id] = fotos;
     const fotosHtml = fotos.length
-      ? `<a class="foto-link" href="${fotos[0]}" target="_blank" rel="noopener">📷 ${fotos.length}</a>`
+      ? `<button type="button" class="foto-link" data-embarque-id="${f.id}" onclick="abrirGaleriaFotos(this.dataset.embarqueId)">📷 ${fotos.length}</button>`
       : '-';
 
     return `
