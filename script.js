@@ -30,6 +30,35 @@ function getFullResUrl(url) {
   return url.replace('/upload/', '/upload/f_auto,q_auto,w_1200,c_limit/');
 }
 
+/**
+ * Deriva automáticamente la cantidad de camiones/contenedores a partir del texto
+ * seleccionado en "Tipo de Contenedor / Transporte", para evitar que alguien
+ * seleccione "6X40" y deje el conteo de camiones desincronizado por error humano.
+ */
+function obtenerCantCamiones(opcionSeleccionada) {
+  if (!opcionSeleccionada) return 1;
+  const opcion = opcionSeleccionada.toUpperCase().trim();
+
+  // Carga consolidada / unidades únicas -> siempre 1 camión/unidad
+  const unidadesUnicas = [
+    'LCL',
+    'CONTENEDOR 40 COMPARTIDO',
+    'CONTENEDOR 20',
+    'CONTENEDOR DE 20',
+    'CONTENEDOR 40',
+    '1X20',
+    '1X40',
+    'FCL'
+  ];
+  if (unidadesUnicas.includes(opcion)) return 1;
+
+  // Flotas / múltiples unidades -> extrae el número antes de la "X" (ej: "6X40" -> 6)
+  const match = opcion.match(/^(\d+)X/);
+  if (match) return parseInt(match[1], 10);
+
+  return 1; // valor de respaldo
+}
+
 const configuredOk = !SUPABASE_URL.includes("TU-PROYECTO") && !SUPABASE_ANON_KEY.includes("TU-ANON-KEY");
 if (!configuredOk) document.getElementById('config-banner').style.display = 'block';
 
@@ -59,6 +88,12 @@ function fmtFecha(iso) {
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;
 }
+function fmtFechaHora(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
 
 // ---------- tabs ----------
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -74,6 +109,11 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 // TAB 1: COMEX — Nuevo embarque
 
+// Auto-calcula la cantidad de camiones/contenedores según el tipo seleccionado
+document.getElementById('n-container').addEventListener('change', (e) => {
+  document.getElementById('n-camiones').value = obtenerCantCamiones(e.target.value);
+});
+
 document.getElementById('form-nuevo').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!requireConfig()) return;
@@ -81,14 +121,18 @@ document.getElementById('form-nuevo').addEventListener('submit', async (e) => {
   const btn = document.getElementById('btn-guardar-nuevo');
   btn.disabled = true; btn.textContent = 'Guardando...';
 
+  const tipoContainer = document.getElementById('n-container').value;
+
   const payload = {
     proveedor: document.getElementById('n-proveedor').value.trim(),
     num_factura: document.getElementById('n-factura').value.trim(),
     descripcion_mercaderia: document.getElementById('n-descripcion').value.trim(),
-    tipo_container: document.getElementById('n-container').value,
+    tipo_container: tipoContainer,
     cant_pallets_est: toNum(document.getElementById('n-pallets').value) || 0,
     cant_cajas_est: toNum(document.getElementById('n-cajas').value) || 0,
     cubicaje_m3: toNum(document.getElementById('n-cubicaje').value) || 0,
+    cant_camiones: obtenerCantCamiones(tipoContainer),
+    camiones_recibidos: 0,
     fecha_estimada_llegada: toDateOrNull(document.getElementById('n-eta').value),
     cedis_destino: document.getElementById('n-cedis').value,
     estado_transito: 'En Origen',
@@ -116,6 +160,7 @@ document.getElementById('form-nuevo').addEventListener('submit', async (e) => {
   document.getElementById('n-pallets').value = 0;
   document.getElementById('n-cajas').value = 0;
   document.getElementById('n-cubicaje').value = 0;
+  document.getElementById('n-camiones').value = 1;
 });
 
 
@@ -132,39 +177,110 @@ async function buscarEmbarquePorFactura(factura) {
   return data[0];
 }
 
+// Trae TODOS los registros que coincidan (factura o id_registro), para detectar duplicados/errores
+async function buscarTodosLosEmbarques(termino) {
+  const t = termino.trim();
+  const { data, error } = await sb.from(TABLE)
+    .select('*')
+    .or(`num_factura.ilike.${t},id_registro.ilike.${t}`)
+    .order('fecha_creacion', { ascending: false });
+  if (error) { toast('Error al buscar: ' + error.message, 'err'); return []; }
+  return data || [];
+}
+
 // TAB 2: COMEX — Estado/Canal
 
 let registroEstadoActual = null;
+let registrosEstadoEncontrados = [];
 
 async function buscarEstado() {
   if (!requireConfig()) return;
   const factura = document.getElementById('e-buscar').value;
-  if (!factura.trim()) { toast('Escribe un N° de factura.', 'err'); return; }
+  if (!factura.trim()) { toast('Escribe un N° de factura o ID.', 'err'); return; }
 
-  const r = await buscarEmbarquePorFactura(factura);
   const resultBox = document.getElementById('e-result');
+  const listBox = document.getElementById('e-result-list');
   const editBox = document.getElementById('e-edit');
 
-  if (!r) {
+  const registros = await buscarTodosLosEmbarques(factura);
+  registrosEstadoEncontrados = registros;
+
+  if (registros.length === 0) {
     resultBox.className = 'result-card show';
-    resultBox.innerHTML = `No se encontró ningún embarque con la factura "<strong>${factura}</strong>".`;
+    resultBox.innerHTML = `No se encontró ningún embarque con la factura/ID "<strong>${factura}</strong>".`;
+    listBox.innerHTML = '';
     editBox.classList.remove('show');
     registroEstadoActual = null;
     return;
   }
 
+  resultBox.className = 'result-card';
+  resultBox.innerHTML = '';
+
+  if (registros.length === 1) {
+    listBox.innerHTML = '';
+    seleccionarRegistroEstado(registros[0].id);
+    return;
+  }
+
+  // Más de un registro con la misma factura/ID: se listan por separado para detectar duplicados/errores
+  listBox.innerHTML = `
+    <p style="color:var(--amber); font-weight:700; font-size:0.85rem; margin:4px 0 10px;">
+      ⚠️ Se encontraron ${registros.length} registros con esa factura/ID. Revisa la fecha de creación para identificar el error.
+    </p>
+    ` + registros.map(r => `
+      <div class="e-search-card" id="e-card-${r.id}">
+        <div class="e-search-info">
+          <div class="fg-title">${r.id_registro} — ${r.proveedor}</div>
+          <div class="fg-line">Factura: ${r.num_factura} | Contenedor: ${r.tipo_container || '-'}</div>
+          <div class="fg-line">🕒 Creado: <strong>${fmtFechaHora(r.fecha_creacion)}</strong></div>
+          <div class="fg-line">Estado: ${r.estado_transito} | Canal: ${r.canal_aduana}</div>
+        </div>
+        <div class="e-search-actions">
+          <button type="button" class="btn-secondary" style="padding:8px 14px; font-size:0.8rem;" onclick="seleccionarRegistroEstado('${r.id}')">✏️ Editar</button>
+          <button type="button" class="btn-delete-factura" onclick="eliminarRegistroPorId('${r.id}')">🗑 Eliminar</button>
+        </div>
+      </div>
+    `).join('');
+
+  editBox.classList.remove('show');
+  registroEstadoActual = null;
+}
+
+function seleccionarRegistroEstado(id) {
+  const r = registrosEstadoEncontrados.find(x => String(x.id) === String(id));
+  if (!r) return;
+
   registroEstadoActual = r;
-  resultBox.className = 'result-card show';
-  resultBox.innerHTML = `
-    <div class="rc-title">${r.id_registro} — ${r.proveedor}</div>
-    <div class="rc-line">Factura: ${r.num_factura} | Contenedor: ${r.tipo_container || '-'}</div>
-    <div class="rc-line">Estado actual: ${r.estado_transito} | Canal: ${r.canal_aduana}</div>
-  `;
+  const editBox = document.getElementById('e-edit');
+
+  document.querySelectorAll('.e-search-card').forEach(c => c.classList.remove('selected'));
+  const card = document.getElementById(`e-card-${id}`);
+  if (card) card.classList.add('selected');
+
+  document.getElementById('e-editando-label').textContent =
+    `Editando: ${r.id_registro} (creado ${fmtFechaHora(r.fecha_creacion)})`;
   document.getElementById('e-transito').value = r.estado_transito || 'En Origen';
   document.getElementById('e-canal').value = r.canal_aduana || 'Pendiente';
   document.getElementById('e-eta').value = r.fecha_estimada_llegada || '';
   document.getElementById('e-pallets').value = r.cant_pallets_est || 0;
+  document.getElementById('e-cajas').value = r.cant_cajas_est || 0;
   editBox.classList.add('show');
+  editBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function eliminarRegistroPorId(id) {
+  if (!requireConfig()) return;
+  const r = registrosEstadoEncontrados.find(x => String(x.id) === String(id));
+  const etiqueta = r ? `${r.id_registro} (creado ${fmtFechaHora(r.fecha_creacion)})` : id;
+  const ok = confirm(`¿Eliminar el registro ${etiqueta}? Esta acción no se puede deshacer.`);
+  if (!ok) return;
+
+  const { error } = await sb.from(TABLE).delete().eq('id', id);
+  if (error) { toast('Error al eliminar: ' + error.message, 'err'); return; }
+
+  toast('Registro eliminado.', 'ok');
+  buscarEstado();
 }
 
 async function guardarEstado() {
@@ -176,7 +292,8 @@ async function guardarEstado() {
     estado_transito: document.getElementById('e-transito').value,
     canal_aduana: document.getElementById('e-canal').value,
     fecha_estimada_llegada: toDateOrNull(document.getElementById('e-eta').value),
-    cant_pallets_est: toNum(document.getElementById('e-pallets').value)
+    cant_pallets_est: toNum(document.getElementById('e-pallets').value),
+    cant_cajas_est: toNum(document.getElementById('e-cajas').value)
   };
 
   const { error } = await sb.from(TABLE).update(payload).eq('id', registroEstadoActual.id);
@@ -211,10 +328,13 @@ async function buscarRecepcion() {
 
   registroRecepcionActual = r;
   resultBox.className = 'result-card show';
+  const totalCam = r.cant_camiones || 1;
+  const recCam = r.camiones_recibidos || 0;
   resultBox.innerHTML = `
     <div class="rc-title">${r.id_registro} — ${r.proveedor}</div>
     <div class="rc-line">Factura: ${r.num_factura} | Pallets estimados: ${r.cant_pallets_est} | Cajas estimadas: ${r.cant_cajas_est}</div>
     <div class="rc-line">Canal aduana: ${r.canal_aduana} | Estado tránsito: ${r.estado_transito}</div>
+    <div class="rc-line">🚛 Camiones ya recibidos: <strong>${recCam} / ${totalCam}</strong></div>
   `;
   document.getElementById('r-fecha-real').value = r.fecha_real_llegada || '';
   document.getElementById('r-fecha-oc').value = r.fecha_entrega_oc || '';
@@ -223,6 +343,9 @@ async function buscarRecepcion() {
   document.getElementById('r-pallets').value = r.pallets_recibidos ?? '';
   document.getElementById('r-cajas').value = r.cajas_recibidas ?? '';
   document.getElementById('r-skus').value = r.sku_recibidos ?? '';
+  document.getElementById('r-camiones-entrega').value = 0;
+  document.getElementById('r-camiones-info').textContent =
+    `Ya recibidos: ${recCam} de ${totalCam}. Escribe aquí solo los camiones que llegan en ESTA entrega (se suman al acumulado).`;
   archivosFotosSeleccionados = [];
   document.getElementById('r-fotos-preview').innerHTML = '';
   document.getElementById('r-fotos-input').value = '';
@@ -312,6 +435,11 @@ async function guardarRecepcion() {
 
     toast("Guardando datos de recepción...", "info");
 
+    const totalCam = registroRecepcionActual.cant_camiones || 1;
+    const yaRecibidos = registroRecepcionActual.camiones_recibidos || 0;
+    const nuevosCamiones = toNum(document.getElementById('r-camiones-entrega').value) || 0;
+    const camionesRecibidosTotal = Math.min(yaRecibidos + nuevosCamiones, totalCam);
+
     const payload = {
       fecha_real_llegada: toDateOrNull(document.getElementById('r-fecha-real').value),
       fecha_entrega_oc: toDateOrNull(document.getElementById('r-fecha-oc').value),
@@ -319,7 +447,8 @@ async function guardarRecepcion() {
       estado_recepcion: document.getElementById('r-estado').value,
       pallets_recibidos: toNum(document.getElementById('r-pallets').value),
       cajas_recibidas: toNum(document.getElementById('r-cajas').value),
-      sku_recibidos: toNum(document.getElementById('r-skus').value)
+      sku_recibidos: toNum(document.getElementById('r-skus').value),
+      camiones_recibidos: camionesRecibidosTotal
     };
 
     const { error } = await sb
@@ -329,8 +458,9 @@ async function guardarRecepcion() {
 
     if (error) throw error;
 
-    toast("¡Recepción y fotos guardadas con éxito!", "ok");
+    toast(`¡Recepción guardada! Camiones: ${camionesRecibidosTotal}/${totalCam}.`, "ok");
     archivosFotosSeleccionados = [];
+    registroRecepcionActual.camiones_recibidos = camionesRecibidosTotal;
 
   } catch (err) {
     console.error("Error en guardarRecepcion:", err);
@@ -442,15 +572,31 @@ function claseCanal(canal) {
   return 'canal-pendiente';
 }
 
-function crearHtmlTarjeta(f) {
+function crearHtmlTarjeta(f, camionesEnEstaTarjeta, totalCamiones, esRecibidoParcial) {
+  const esLCL = (f.tipo_container || '').toUpperCase() === 'LCL';
+  const esFlotaGrande = totalCamiones > 2;
+  const esUrgente = totalCamiones >= 5;
+
+  let clases = 'prov-card';
+  if (esFlotaGrande) clases += ' card-flota-grande';
+  if (esUrgente) clases += ' card-urgente';
+  if (esLCL) clases += ' card-lcl';
+
+  const badgeUrgente = esUrgente ? `<span class="badge-urgente">🔥 URGENTE</span>` : '';
+  const tagLCL = esLCL ? `<span class="tag-lcl">LCL</span>` : '';
+  const etiquetaParcial = esRecibidoParcial ? `<span class="tag-parcial">Recibido parcial</span>` : '';
+
   return `
-    <div class="prov-card">
+    <div class="${clases}">
       <span class="truck-icon">🚛</span>
+      ${badgeUrgente}
       <div class="prov-name">${f.proveedor}</div>
+      <div class="fleet-badge">🚛 ${camionesEnEstaTarjeta}/${totalCamiones} camiones</div>
       <div class="prov-detail"><strong>Fact:</strong> ${f.num_factura}</div>
       <div class="prov-detail"><strong>Pallets:</strong> ${f.pallets_recibidos ?? f.cant_pallets_est} | <strong>Cajas:</strong> ${f.cajas_recibidas ?? f.cant_cajas_est}</div>
       <div class="prov-detail"><strong>📅 ETA:</strong> ${fmtFecha(f.fecha_estimada_llegada)}</div>
       <span class="canal-tag ${claseCanal(f.canal_aduana)}">Canal: ${f.canal_aduana}</span>
+      ${tagLCL} ${etiquetaParcial}
     </div>
   `;
 }
@@ -476,21 +622,46 @@ function filtrarMonitor() {
     aduana: document.getElementById('stack-aduana'),
     cedis: document.getElementById('stack-cedis')
   };
-  Object.values(stacks).forEach(s => s.innerHTML = '');
+  // Acumulamos tarjetas por columna como objetos {html, camiones} para poder ordenar antes de pintar
+  const tarjetasPorColumna = { origen: [], transito: [], frontera: [], aduana: [], cedis: [] };
 
   const activosRuta = filtrados.filter(f => {
     const estRec = (f.estado_recepcion || '').toLowerCase();
     return !estRec.includes('finalizado') && !estRec.includes('recibido');
   });
 
+  function bucketDeEstado(estTr) {
+    if (estTr.includes('frontera')) return 'frontera';
+    if (estTr.includes('aduana')) return 'aduana';
+    if (estTr.includes('tránsito') || estTr.includes('transito')) return 'transito';
+    if (estTr.includes('cedis') || estTr.includes('arribo')) return 'cedis';
+    return 'origen';
+  }
+
   activosRuta.forEach(f => {
-    const estTr = (f.estado_transito || '').toLowerCase();
-    const html = crearHtmlTarjeta(f);
-    if (estTr.includes('frontera')) stacks.frontera.innerHTML += html;
-    else if (estTr.includes('aduana')) stacks.aduana.innerHTML += html;
-    else if (estTr.includes('tránsito') || estTr.includes('transito')) stacks.transito.innerHTML += html;
-    else if (estTr.includes('cedis') || estTr.includes('arribo')) stacks.cedis.innerHTML += html;
-    else stacks.origen.innerHTML += html;
+    const totalCam = f.cant_camiones || 1;
+    const recCam = Math.min(f.camiones_recibidos || 0, totalCam);
+    const pendCam = totalCam - recCam;
+
+    // Cierre de ciclo: si ya llegó el 100% de camiones a CEDIS, se oculta del tablero
+    if (recCam >= totalCam) return;
+
+    const bucket = bucketDeEstado((f.estado_transito || '').toLowerCase());
+
+    if (recCam > 0 && bucket !== 'cedis') {
+      // Split visual: parte pendiente sigue en su etapa actual, parte recibida aparece en CEDIS
+      tarjetasPorColumna[bucket].push({ camiones: pendCam, html: crearHtmlTarjeta(f, pendCam, totalCam, false) });
+      tarjetasPorColumna.cedis.push({ camiones: recCam, html: crearHtmlTarjeta(f, recCam, totalCam, true) });
+    } else {
+      const cantMostrada = bucket === 'cedis' ? Math.max(recCam, 0) || totalCam : totalCam;
+      tarjetasPorColumna[bucket].push({ camiones: totalCam, html: crearHtmlTarjeta(f, cantMostrada, totalCam, bucket === 'cedis' && recCam > 0) });
+    }
+  });
+
+  // Ordenamiento automático: mayor cantidad de camiones primero (prioriza flotas grandes/urgentes)
+  Object.keys(stacks).forEach(key => {
+    const ordenado = tarjetasPorColumna[key].sort((a, b) => b.camiones - a.camiones);
+    stacks[key].innerHTML = ordenado.map(t => t.html).join('');
   });
 
   const tbody = document.getElementById('tabla-body');
