@@ -602,12 +602,22 @@ function crearHtmlTarjeta(f, camionesEnEstaTarjeta, totalCamiones, esRecibidoPar
   const tagLCL = esLCL ? `<span class="tag-lcl">LCL</span>` : '';
   const etiquetaParcial = esRecibidoParcial ? `<span class="tag-parcial">Recibido parcial</span>` : '';
 
+  // 1. Convertimos a números exactos
+  const recCam = Number(f.camiones_recibidos || 0);
+  const totalCam = Number(totalCamiones || f.cant_camiones || 1);
+
+  // 2. SOLO se oculta si ya se registró la recepción física del TOTAL de camiones en el formulario
+  const recepcionCompleta = recCam >= totalCam;
+
+  const fleetBadgeHtml = recepcionCompleta
+    ? ''
+    : `<div class="fleet-badge">🚛 ${camionesEnEstaTarjeta}/${totalCamiones} camiones</div>`;
+
   return `
     <div class="${clases}">
-      <span class="truck-icon">🚛</span>
       ${badgeUrgente}
       <div class="prov-name">${f.proveedor}</div>
-      <div class="fleet-badge">🚛 ${camionesEnEstaTarjeta}/${totalCamiones} camiones</div>
+      ${fleetBadgeHtml}
       <div class="prov-detail"><strong>Fact:</strong> ${f.num_factura}</div>
       <div class="prov-detail"><strong>Pallets:</strong> ${f.pallets_recibidos ?? f.cant_pallets_est} | <strong>Cajas:</strong> ${f.cajas_recibidas ?? f.cant_cajas_est}</div>
       <div class="prov-detail"><strong>📅 ETA:</strong> ${fmtFecha(f.fecha_estimada_llegada)}</div>
@@ -638,12 +648,14 @@ function filtrarMonitor() {
     aduana: document.getElementById('stack-aduana'),
     cedis: document.getElementById('stack-cedis')
   };
-  // Acumulamos tarjetas por columna como objetos {html, camiones} para poder ordenar antes de pintar
+
   const tarjetasPorColumna = { origen: [], transito: [], frontera: [], aduana: [], cedis: [] };
 
+  // 1. FILTRO AJUSTADO: Solo se excluyen los estados finales "finalizado" y "recibido con novedad"
   const activosRuta = filtrados.filter(f => {
-    const estRec = (f.estado_recepcion || '').toLowerCase();
-    return !estRec.includes('finalizado') && !estRec.includes('recibido');
+    const estRec = (f.estado_recepcion || '').toLowerCase().trim();
+    const esFinalizado = estRec.includes('finalizado') || estRec.includes('recibido con novedad');
+    return !esFinalizado;
   });
 
   function bucketDeEstado(estTr) {
@@ -659,13 +671,13 @@ function filtrarMonitor() {
     const recCam = Math.min(f.camiones_recibidos || 0, totalCam);
     const pendCam = totalCam - recCam;
 
-    // Cierre de ciclo: si ya llegó el 100% de camiones a CEDIS, se oculta del tablero
-    if (recCam >= totalCam) return;
+    // 2. REGLA ELIMINADA: Ya no se oculta automáticamente si recCam >= totalCam.
+    // Permanecerá visible en la columna CEDIS mientras no pase a "Finalizado" o "Recibido con Novedad".
 
     const bucket = bucketDeEstado((f.estado_transito || '').toLowerCase());
 
     if (recCam > 0 && bucket !== 'cedis') {
-      // Split visual: parte pendiente sigue en su etapa actual, parte recibida aparece en CEDIS
+      // Split visual para entregas parciales en camino
       tarjetasPorColumna[bucket].push({ camiones: pendCam, html: crearHtmlTarjeta(f, pendCam, totalCam, false) });
       tarjetasPorColumna.cedis.push({ camiones: recCam, html: crearHtmlTarjeta(f, recCam, totalCam, true) });
     } else {
@@ -674,12 +686,13 @@ function filtrarMonitor() {
     }
   });
 
-  // Ordenamiento automático: mayor cantidad de camiones primero (prioriza flotas grandes/urgentes)
+  // Ordenamiento automático
   Object.keys(stacks).forEach(key => {
     const ordenado = tarjetasPorColumna[key].sort((a, b) => b.camiones - a.camiones);
     stacks[key].innerHTML = ordenado.map(t => t.html).join('');
   });
 
+  // Renderizado de la tabla inferior
   const tbody = document.getElementById('tabla-body');
   if (filtrados.length === 0) {
     tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;">No se encontraron registros.</td></tr>';
