@@ -644,12 +644,12 @@ function filtrarMonitor() {
   const stacks = {
     origen: document.getElementById('stack-origen'),
     transito: document.getElementById('stack-transito'),
-    frontera: document.getElementById('stack-frontera'),
+    puerto: document.getElementById('stack-puerto'),
     aduana: document.getElementById('stack-aduana'),
     cedis: document.getElementById('stack-cedis')
   };
 
-  const tarjetasPorColumna = { origen: [], transito: [], frontera: [], aduana: [], cedis: [] };
+  const tarjetasPorColumna = { origen: [], transito: [], puerto: [], aduana: [], cedis: [] };
 
   // 1. FILTRO AJUSTADO: Solo se excluyen los estados finales "finalizado" y "recibido con novedad"
   const activosRuta = filtrados.filter(f => {
@@ -659,7 +659,7 @@ function filtrarMonitor() {
   });
 
   function bucketDeEstado(estTr) {
-    if (estTr.includes('frontera')) return 'frontera';
+    if (estTr.includes('puerto') || estTr.includes('frontera')) return 'puerto';
     if (estTr.includes('aduana')) return 'aduana';
     if (estTr.includes('tránsito') || estTr.includes('transito')) return 'transito';
     if (estTr.includes('cedis') || estTr.includes('arribo')) return 'cedis';
