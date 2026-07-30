@@ -315,7 +315,7 @@ body {
 }
 .roadmap-title { font-size: 1.05rem; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 25px;
   display: flex; align-items: center; gap: 10px; color: #38bdf8; }
-.roadmap-container { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; align-items: start; }
+.roadmap-container { position: relative; display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; align-items: start; }
 .roadmap-line { position: absolute; top: 20px; left: 10%; right: 10%; height: 4px; background: #1e3a8a; z-index: 1; }
 .roadmap-stage { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; }
 .stage-node { width: 44px; height: 44px; border-radius: 50%; background: #0284c7; border: 4px solid #0f1d36;
@@ -323,10 +323,10 @@ body {
   box-shadow: 0 0 12px rgba(2,132,199,0.6); margin-bottom: 8px; }
 .stage-label { font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: #94a3b8; margin-bottom: 15px; text-align: center; }
 .cards-stack { width: 100%; display: flex; flex-direction: column; gap: 12px; }
-.prov-card { position: relative; background: #fff; color: var(--text-dark); padding: 12px 14px;
+.prov-card { position: relative; background: #fff; color: var(--text-dark); padding: 8px 12px;
   border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 0.85rem; border-left: 5px solid #0284c7;
-  transition: transform 0.2s; }
-.prov-card:hover { transform: scale(1.02); }
+  cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+.prov-card:hover { transform: scale(1.02); box-shadow: 0 6px 16px rgba(0,0,0,0.2); }
 .prov-card .truck-icon { position: absolute; top: 8px; right: 8px; font-size: 1.4rem; opacity: 0.9; }
 .prov-card .prov-name { font-weight: 800; font-size: 0.99rem; color: #0f172a; text-transform: uppercase;
   margin-bottom: 6px; padding-right: 28px; }
@@ -336,6 +336,59 @@ body {
 .canal-amarillo { background: #fef3c7; color: var(--amber); }
 .canal-rojo { background: #fee2e2; color: var(--red); }
 .canal-pendiente { background: #e2e8f0; color: var(--text-muted); }
+
+/* --- TARJETAS COMPACTAS / ACCORDION (Roadmap) ---
+   Cabecera SIEMPRE visible (nombre + badge de camiones);
+   detalles (factura, pallets, ETA, canal) ocultos hasta
+   que el usuario haga click/tap o pase el mouse. */
+.card-header-compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.card-header-compact .prov-name {
+  margin: 0;
+  padding-right: 0;
+  flex: 1 1 auto;
+}
+.card-toggle-hint {
+  margin-left: auto;
+  font-size: 0.7rem;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: transform 0.25s ease;
+}
+.prov-card.expanded .card-toggle-hint,
+.prov-card:hover .card-toggle-hint {
+  transform: rotate(180deg);
+}
+.card-details {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0 solid var(--border-color);
+  transition: max-height 0.28s ease, opacity 0.22s ease, margin-top 0.28s ease, padding-top 0.28s ease;
+}
+.prov-card.expanded .card-details {
+  max-height: 220px;
+  opacity: 1;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top-width: 1px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .prov-card:hover .card-details {
+    max-height: 220px;
+    opacity: 1;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top-width: 1px;
+  }
+}
+
 
 /* TARJETAS DE FLOTA — BADGE DE CAMIONES Y ESTILOS DINÁMICOS */
 .fleet-badge {
@@ -600,4 +653,71 @@ tr:hover { background-color: #f1f5f9; }
     flex-wrap: wrap;
     gap: 10px;
   }
+}
+
+/* --- EDICIÓN INLINE DEL NOMBRE DEL PROVEEDOR (Estado / Canal) --- */
+#e-editando-label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+#e-proveedor-display {
+  font-weight: 800;
+  color: var(--blue-primary);
+  font-size: 0.95rem;
+  text-transform: uppercase;
+}
+.btn-edit-pencil {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 4px 7px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+.btn-edit-pencil:hover {
+  background: var(--blue-light);
+}
+.input-edit-proveedor {
+  padding: 6px 10px;
+  border: 1.5px solid var(--blue-accent);
+  border-radius: 7px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  text-transform: uppercase;
+  min-width: 220px;
+  outline: none;
+}
+.btn-mini-ok, .btn-mini-cancel {
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 5px 9px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+.btn-mini-ok {
+  background: #dcfce7;
+  color: var(--green);
+}
+.btn-mini-ok:hover {
+  background: var(--green);
+  color: #fff;
+}
+.btn-mini-cancel {
+  background: #fee2e2;
+  color: var(--red);
+}
+.btn-mini-cancel:hover {
+  background: var(--red);
+  color: #fff;
 }

@@ -258,8 +258,8 @@ function seleccionarRegistroEstado(id) {
   const card = document.getElementById(`e-card-${id}`);
   if (card) card.classList.add('selected');
 
-  document.getElementById('e-editando-label').textContent =
-    `Editando: ${r.id_registro} (creado ${fmtFechaHora(r.fecha_creacion)})`;
+  document.getElementById('e-proveedor-display').textContent = r.proveedor || '(Sin proveedor)';
+  cancelarEdicionProveedor();
   document.getElementById('e-transito').value = r.estado_transito || 'En Origen';
   document.getElementById('e-canal').value = r.canal_aduana || 'Pendiente';
   document.getElementById('e-eta').value = r.fecha_estimada_llegada || '';
@@ -267,6 +267,58 @@ function seleccionarRegistroEstado(id) {
   document.getElementById('e-cajas').value = r.cant_cajas_est || 0;
   editBox.classList.add('show');
   editBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function activarEdicionProveedor() {
+  if (!registroEstadoActual) return;
+  const display = document.getElementById('e-proveedor-display');
+  const input = document.getElementById('e-proveedor-input');
+  const btnEdit = document.getElementById('e-btn-edit-proveedor');
+  const btnGuardar = document.getElementById('e-btn-guardar-proveedor');
+  const btnCancelar = document.getElementById('e-btn-cancelar-proveedor');
+
+  input.value = registroEstadoActual.proveedor || '';
+  display.style.display = 'none';
+  btnEdit.style.display = 'none';
+  input.style.display = 'inline-block';
+  btnGuardar.style.display = 'inline-flex';
+  btnCancelar.style.display = 'inline-flex';
+  input.focus();
+  input.select();
+}
+
+function cancelarEdicionProveedor() {
+  const display = document.getElementById('e-proveedor-display');
+  const input = document.getElementById('e-proveedor-input');
+  const btnEdit = document.getElementById('e-btn-edit-proveedor');
+  const btnGuardar = document.getElementById('e-btn-guardar-proveedor');
+  const btnCancelar = document.getElementById('e-btn-cancelar-proveedor');
+  if (!display) return;
+
+  display.style.display = 'inline';
+  btnEdit.style.display = 'inline-flex';
+  input.style.display = 'none';
+  btnGuardar.style.display = 'none';
+  btnCancelar.style.display = 'none';
+}
+
+async function guardarNombreProveedor() {
+  if (!requireConfig() || !registroEstadoActual) return;
+  const input = document.getElementById('e-proveedor-input');
+  const nuevoNombre = input.value.trim();
+
+  if (!nuevoNombre) {
+    toast('El nombre del proveedor no puede quedar vacío.', 'err');
+    return;
+  }
+
+  const { error } = await sb.from(TABLE).update({ proveedor: nuevoNombre }).eq('id', registroEstadoActual.id);
+  if (error) { toast('Error al actualizar el proveedor: ' + error.message, 'err'); return; }
+
+  registroEstadoActual.proveedor = nuevoNombre;
+  document.getElementById('e-proveedor-display').textContent = nuevoNombre;
+  cancelarEdicionProveedor();
+  toast('Nombre de proveedor actualizado.', 'ok');
 }
 
 async function eliminarRegistroActual() {
@@ -614,15 +666,21 @@ function crearHtmlTarjeta(f, camionesEnEstaTarjeta, totalCamiones, esRecibidoPar
     : `<div class="fleet-badge">🚛 ${camionesEnEstaTarjeta}/${totalCamiones} camiones</div>`;
 
   return `
-    <div class="${clases}">
-      ${badgeUrgente}
-      <div class="prov-name">${f.proveedor}</div>
-      ${fleetBadgeHtml}
-      <div class="prov-detail"><strong>Fact:</strong> ${f.num_factura}</div>
-      <div class="prov-detail"><strong>Pallets:</strong> ${f.pallets_recibidos ?? f.cant_pallets_est} | <strong>Cajas:</strong> ${f.cajas_recibidas ?? f.cant_cajas_est}</div>
-      <div class="prov-detail"><strong>📅 ETA:</strong> ${fmtFecha(f.fecha_estimada_llegada)}</div>
-      <span class="canal-tag ${claseCanal(f.canal_aduana)}">Canal: ${f.canal_aduana}</span>
-      ${tagLCL} ${etiquetaParcial}
+    <div class="${clases}" onclick="this.classList.toggle('expanded')" role="button" tabindex="0"
+         onkeydown="if(event.key==='Enter'||event.key===' '){this.classList.toggle('expanded');event.preventDefault();}">
+      <div class="card-header-compact">
+        ${badgeUrgente}
+        <div class="prov-name">${f.proveedor}</div>
+        ${fleetBadgeHtml}
+        ${tagLCL} ${etiquetaParcial}
+        <span class="card-toggle-hint">▾</span>
+      </div>
+      <div class="card-details">
+        <div class="prov-detail"><strong>Fact:</strong> ${f.num_factura}</div>
+        <div class="prov-detail"><strong>Pallets:</strong> ${f.pallets_recibidos ?? f.cant_pallets_est} | <strong>Cajas:</strong> ${f.cajas_recibidas ?? f.cant_cajas_est}</div>
+        <div class="prov-detail"><strong>📅 ETA:</strong> ${fmtFecha(f.fecha_estimada_llegada)}</div>
+        <span class="canal-tag ${claseCanal(f.canal_aduana)}">Canal: ${f.canal_aduana}</span>
+      </div>
     </div>
   `;
 }
@@ -645,11 +703,12 @@ function filtrarMonitor() {
     origen: document.getElementById('stack-origen'),
     transito: document.getElementById('stack-transito'),
     puerto: document.getElementById('stack-puerto'),
+    frontera: document.getElementById('stack-frontera'),
     aduana: document.getElementById('stack-aduana'),
     cedis: document.getElementById('stack-cedis')
   };
 
-  const tarjetasPorColumna = { origen: [], transito: [], puerto: [], aduana: [], cedis: [] };
+  const tarjetasPorColumna = { origen: [], transito: [], puerto: [], frontera: [], aduana: [], cedis: [] };
 
   // 1. FILTRO AJUSTADO: Solo se excluyen los estados finales "finalizado" y "recibido con novedad"
   const activosRuta = filtrados.filter(f => {
@@ -659,7 +718,8 @@ function filtrarMonitor() {
   });
 
   function bucketDeEstado(estTr) {
-    if (estTr.includes('puerto') || estTr.includes('frontera')) return 'puerto';
+    if (estTr.includes('frontera')) return 'frontera';
+    if (estTr.includes('puerto')) return 'puerto';
     if (estTr.includes('aduana')) return 'aduana';
     if (estTr.includes('tránsito') || estTr.includes('transito')) return 'transito';
     if (estTr.includes('cedis') || estTr.includes('arribo')) return 'cedis';
